@@ -78,6 +78,10 @@ def on_gaussian_blur_trackbar(val):
     global gaussian_blur_radius
     gaussian_blur_radius = val
 
+def on_gaussian_stdev(val):
+    global gaussian_stdev
+    gaussian_stdev = val
+
 def makeIndicator(): 
     global indicator
     size = 100
@@ -113,6 +117,9 @@ gaussian_blur_radius  = 1
 cv.createTrackbar("Gaussian_blurring", window_detection_name, 0,
                   100, on_gaussian_blur_trackbar)
 
+cv.createTrackbar("Gaussian_stdev", window_detection_name, 0,
+                  100, on_gaussian_stdev)
+
 
 ret, frame = cap.read()
 makeIndicator()
@@ -120,13 +127,15 @@ makeIndicator()
 mask = True
 target = True
 
+gaussian_stdev = 0
+
 while True:
 
     ret, frame = cap.read()
     if frame is None:
         break
 
-    frame = cv.GaussianBlur(frame,( 1 + 2 *(gaussian_blur_radius), ) * 2 ,0)
+    frame = cv.GaussianBlur(frame,( 1 + 2 *(gaussian_blur_radius), ) * 2 , gaussian_stdev)
 
     frame_HSV = cv.cvtColor(frame, cv.COLOR_BGR2HSV)
 
