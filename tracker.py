@@ -1,5 +1,4 @@
 # NV 2026
-# No AI used in the writing of this code
 # Sources
 # https://www.youtube.com/watch?v=caNUo-bQV9c
 # https://docs.opencv.org/3.4/da/d97/tutorial_threshold_inRange.html
@@ -75,6 +74,10 @@ def on_high_V_thresh_trackbar(val):
     # high_V = max(high_V, low_V+1)
     # cv.setTrackbarPos(high_V_name, window_detection_name, high_V)
 
+def on_gaussian_blur_trackbar(val):
+    global gaussian_blur_radius
+    gaussian_blur_radius = val
+
 def makeIndicator(): 
     global indicator
     size = 100
@@ -104,15 +107,29 @@ cv.createTrackbar(low_V_name, window_detection_name, low_V,
 cv.createTrackbar(high_V_name, window_detection_name, high_V,
                   max_value, on_high_V_thresh_trackbar)
 
+
+gaussian_blur_radius  = 1
+
+cv.createTrackbar("Gaussian_blurring", window_detection_name, 0,
+                  100, on_gaussian_blur_trackbar)
+
+
 ret, frame = cap.read()
 makeIndicator()
+
+mask = True
+target = True
 
 while True:
 
     ret, frame = cap.read()
     if frame is None:
         break
+
+    frame = cv.GaussianBlur(frame,( 1 + 2 *(gaussian_blur_radius), ) * 2 ,0)
+
     frame_HSV = cv.cvtColor(frame, cv.COLOR_BGR2HSV)
+
     frame_threshold = cv.inRange(
         frame_HSV, (low_H, low_S, low_V), (high_H, high_S, high_V))
     # print("threshold shpa ", frame_threshold.shape)
@@ -120,15 +137,32 @@ while True:
     # print(frame_HSV.dtype)
 
     # cv.imshow(window_capture_name, frame)
+    masked_image = frame
 
     # 255 - frame  * np.tile(np.expand_dims(frame_threshold, axis=2), (1, 1,3) )
-    masked_image = cv.bitwise_and(frame, frame, mask=frame_threshold)
+    if mask:
+        masked_image = cv.bitwise_and(frame, frame, mask=frame_threshold)
 
-
+    
     # print(np.concatenate((indicator, masked_image)))
+    if target: 
+        M = cv.moments(frame_threshold, True)
+        # Avoid division by zero
+        if M["m00"] != 0:
+            cX = int(M["m10"] / M["m00"])
+            cY = int(M["m01"] / M["m00"])
+
+            cv.circle(masked_image, (cX, cY), 10, (255, 0, 0), 3)
+            
+        # print(cv.moments(frame_threshold, True))
+        # cv.circle(masked_image, cv.moments(frame_threshold, True), 10, color=255)
 
     cv.imshow(window_detection_name, np.concatenate((indicator, masked_image)))
 
     key = cv.waitKey(30)
     if key == ord('q') or key == 27:
         break
+    elif key == ord('m'):
+        mask = not mask
+    elif key == ord('t'):
+        target = not target
