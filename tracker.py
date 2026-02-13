@@ -9,6 +9,7 @@
 import cv2 as cv
 # import argparse
 import numpy as np
+import time 
 max_value = 255
 max_value_H = 360//2
 low_H = 0
@@ -19,9 +20,9 @@ high_S = max_value
 high_V = max_value
 window_capture_name = 'Video Capture'
 window_detection_name = 'Object Detection'
-low_H_name = 'Low Hue Limit'
-low_S_name = 'Low Saturation Limit'
-low_V_name = 'Low Value'
+low_H_name = 'Low H'
+low_S_name = 'Low S'
+low_V_name = 'Low V'
 high_H_name = 'High H'
 high_S_name = 'High S'
 high_V_name = 'High V'
@@ -96,7 +97,8 @@ def makeIndicator():
 # parser = argparse.ArgumentParser(description='Code for Thresholding Operations.')
 # parser.add_argument('--camera', help='Camera divide number.', default=0, type=int)
 # args = parser.parse_args()
-cap = cv.VideoCapture(0)  # args.camera)
+cap = cv.VideoCapture("IMG_0613.mov") # 0)  # args.camera)
+
 cv.namedWindow(window_detection_name)
 cv.createTrackbar(low_H_name, window_detection_name, low_H,
                   max_value_H, on_low_H_thresh_trackbar)
@@ -114,10 +116,10 @@ cv.createTrackbar(high_V_name, window_detection_name, high_V,
 
 gaussian_blur_radius  = 1
 
-cv.createTrackbar("Gaussian_blurring", window_detection_name, 0,
+cv.createTrackbar("G Radius", window_detection_name, 0,
                   100, on_gaussian_blur_trackbar)
 
-cv.createTrackbar("Gaussian_stdev", window_detection_name, 0,
+cv.createTrackbar("G stdev", window_detection_name, 0,
                   100, on_gaussian_stdev)
 
 
@@ -128,8 +130,11 @@ mask = True
 target = True
 
 gaussian_stdev = 0
+current_frame = 0
+output = np.zeros((int(cap.get(cv.CAP_PROP_FRAME_COUNT)), 2))
 
-while True:
+while cap.isOpened():
+    cap.set(cv.CAP_PROP_POS_FRAMES, current_frame)
 
     ret, frame = cap.read()
     if frame is None:
@@ -162,16 +167,27 @@ while True:
             cY = int(M["m01"] / M["m00"])
 
             cv.circle(masked_image, (cX, cY), 10, (255, 0, 0), 3)
+
+            output[current_frame] = np.array([cX, cY])
             
         # print(cv.moments(frame_threshold, True))
         # cv.circle(masked_image, cv.moments(frame_threshold, True), 10, color=255)
 
+    
     cv.imshow(window_detection_name, np.concatenate((indicator, masked_image)))
 
     key = cv.waitKey(30)
     if key == ord('q') or key == 27:
+        np.savetxt(f"positions{time.time()}.csv", output, delimiter=",", fmt="%d")
         break
     elif key == ord('m'):
         mask = not mask
     elif key == ord('t'):
         target = not target
+    elif key == ord('l'): 
+        current_frame += 1
+    elif key == ord('j'):
+        current_frame = max(0, current_frame - 1)
+
+print(low_H, low_S, low_V, high_H, high_S, high_V, gaussian_blur_radius, gaussian_stdev)
+np.savetxt(f"positions{time.time()}.csv", output, delimiter=",", fmt="%d")
