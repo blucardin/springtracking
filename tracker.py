@@ -97,7 +97,8 @@ def makeIndicator():
 # parser = argparse.ArgumentParser(description='Code for Thresholding Operations.')
 # parser.add_argument('--camera', help='Camera divide number.', default=0, type=int)
 # args = parser.parse_args()
-cap = cv.VideoCapture("IMG_0613.mov") # 0)  # args.camera)
+capture = "IMG_6774.MOV"
+cap = cv.VideoCapture(capture) # "IMG_0613.mov") # 0)  # args.camera)
 
 cv.namedWindow(window_detection_name)
 cv.createTrackbar(low_H_name, window_detection_name, low_H,
@@ -133,12 +134,18 @@ gaussian_stdev = 0
 current_frame = 0
 output = np.zeros((int(cap.get(cv.CAP_PROP_FRAME_COUNT)), 2))
 
+first = True
+
 while cap.isOpened():
-    cap.set(cv.CAP_PROP_POS_FRAMES, current_frame)
+    if capture != 0: 
+        cap.set(cv.CAP_PROP_POS_FRAMES, current_frame)
 
     ret, frame = cap.read()
     if frame is None:
         break
+
+    frame = frame[250:350, 400:550]
+
 
     frame = cv.GaussianBlur(frame,( 1 + 2 *(gaussian_blur_radius), ) * 2 , gaussian_stdev)
 
@@ -168,13 +175,67 @@ while cap.isOpened():
 
             cv.circle(masked_image, (cX, cY), 10, (255, 0, 0), 3)
 
-            output[current_frame] = np.array([cX, cY])
+            if capture != 0: 
+                output[current_frame] = np.array([cX, cY])
             
         # print(cv.moments(frame_threshold, True))
         # cv.circle(masked_image, cv.moments(frame_threshold, True), 10, color=255)
 
+        # thresh = np.zeros((masked_image.shape[0], masked_image.shape[1], 1)).astype("uint8")
+        # cv.rectangle( thresh , (400, 200), (550, 350) , 1, -1)
+        # print(masked_image.shape)
+        # print(thresh.shape)
+        # masked_image = cv.bitwise_and(masked_image, masked_image, mask=thresh)
+
+
+        dst = cv.Canny(masked_image, 75, 200, None, 3)
+        linesP = cv.HoughLinesP(dst, 1, np.pi / 180, 50, None, 50, 10)
+
+
+
+        angles = []
+        if linesP is not None:
+            for i in range(0, len(linesP)):
+                l = linesP[i][0]
+                cv.line(masked_image, (l[0], l[1]), (l[2], l[3]), (0,0,255), 3, cv.LINE_AA)
+
+                angles.append(np.arctan2((l[2] - l[3]), (l[0] - l[1])))
+
+        if len(angles) != 0: 
+            average_angle = sum(angles)/len(angles)
+
+        if first: 
+            first = False
+            p1 = (linesP[0][0], linesP[0][1])
+            p2 = (linesP[0][2], linesP[0][3])
+        else: 
+            max1dist = 0
+            replacement1 = ()
+            max2dist = 0
+            replacement2 = ()
+            for line in linesP:
+                p1new =  line[0] + line[1]
+                p2new =  line[1] + line[2]
+                for newPoint in (p1new, p2new): 
+                    dist1 = np.sqrt((newPoint[0] - p1[0])**2 + (newPoint[1] - p1[1])**2)
+                    if dist1 > max1dist: 
+                        replacement1 = newPoint
+                        max1dist = 
+
+                
+        print(average_angle)
+
+        r = 50
+        # if not np.isnan(np.cos(average_angle)) and not np.isnan(np.sin(average_angle)): 
+
+        #     cv.line(masked_image, (masked_image.shape[0]//2, masked_image.shape[1]//2), 
+        #             (int(masked_image.shape[0]//2 + r * np.sin(average_angle)), 
+        #             int(masked_image.shape[1]//2 + r * np.cos(average_angle))), (0,255,0), 3, cv.LINE_AA)
+        cv.line(masked_image, (masked_image.shape[0]//2, masked_image.shape[1]//2), 
+                    (int(masked_image.shape[0]//2 + r * np.sin(average_angle)), 
+                    int(masked_image.shape[1]//2 + r * np.cos(average_angle))), (0,255,0), 3, cv.LINE_AA)
     
-    cv.imshow(window_detection_name, np.concatenate((indicator, masked_image)))
+    cv.imshow(window_detection_name, masked_image) #np.concatenate((indicator, masked_image)))
 
     key = cv.waitKey(30)
     if key == ord('q') or key == 27:
