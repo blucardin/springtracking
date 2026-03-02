@@ -99,7 +99,7 @@ def makeIndicator():
 # args = parser.parse_args()
 cap = cv.VideoCapture("IMG_0613.mov") # 0)  # args.camera)
 
-cv.namedWindow(window_detection_name)
+cv.namedWindow(window_detection_name, cv.WINDOW_NORMAL)
 cv.createTrackbar(low_H_name, window_detection_name, low_H,
                   max_value_H, on_low_H_thresh_trackbar)
 cv.createTrackbar(high_H_name, window_detection_name, high_H,
@@ -112,6 +112,19 @@ cv.createTrackbar(low_V_name, window_detection_name, low_V,
                   max_value, on_low_V_thresh_trackbar)
 cv.createTrackbar(high_V_name, window_detection_name, high_V,
                   max_value, on_high_V_thresh_trackbar)
+
+coords_to_put = []
+
+def click_event(event, x, y, flags, params):
+    global coords_to_put
+    if event == cv.EVENT_LBUTTONDOWN:
+        print(x, y)
+        coords_to_put.append((x, y))
+        if len(coords_to_put) > 2: 
+            coords_to_put = []
+
+        
+cv.setMouseCallback(window_detection_name, click_event)
 
 
 gaussian_blur_radius  = 1
@@ -131,7 +144,9 @@ target = True
 
 gaussian_stdev = 0
 current_frame = 0
-output = np.zeros((int(cap.get(cv.CAP_PROP_FRAME_COUNT)), 2))
+output = np.zeros((int(cap.get(cv.CAP_PROP_FRAME_COUNT)), 5))
+
+going = False
 
 while cap.isOpened():
     cap.set(cv.CAP_PROP_POS_FRAMES, current_frame)
@@ -139,6 +154,8 @@ while cap.isOpened():
     ret, frame = cap.read()
     if frame is None:
         break
+
+    frame = cv.flip(frame, 0)
 
     frame = cv.GaussianBlur(frame,( 1 + 2 *(gaussian_blur_radius), ) * 2 , gaussian_stdev)
 
@@ -160,25 +177,60 @@ while cap.isOpened():
     
     # print(np.concatenate((indicator, masked_image)))
     if target: 
-        M = cv.moments(frame_threshold, True)
-        # Avoid division by zero
-        if M["m00"] != 0:
-            cX = int(M["m10"] / M["m00"])
-            cY = int(M["m01"] / M["m00"])
 
-            cv.circle(masked_image, (cX, cY), 10, (255, 0, 0), 3)
+        non_zero_coords = cv.findNonZero(frame_threshold)
+        if non_zero_coords is not None and len(non_zero_coords) != 0: 
 
-            output[current_frame] = np.array([cX, cY])
-            
-        # print(cv.moments(frame_threshold, True))
-        # cv.circle(masked_image, cv.moments(frame_threshold, True), 10, color=255)
+            non_zero_coords = np.reshape(non_zero_coords, (-1, 2))
+            # print(non_zero_coords)
 
+            # M = cv.moments(frame_threshold, True)
+            # Avoid division by zero
+            # if M["m00"] != 0:
+            #     cX = int(M["m10"] / M["m00"])
+            #     cY = int(M["m01"] / M["m00"])
+
+            # print(non_zero_coords[:, 0])
+            means = np.mean(non_zero_coords, axis=0)
+            stds = np.std(non_zero_coords, axis=0)
+            # print("stds", stds)
+            cX = means[0]
+            dcX = stds[0]
+
+            cY = means[1]
+            dcY = stds[1]
+
+            # cv.circle(masked_image, (int(cX), int(cY)), 10, (255, 0, 0), 3)
+            cv.rectangle(masked_image, (int(cX - dcX), int(cY - dcY)), (int(cX + dcX), int(cY + dcY)), (255, 0, 0), 3)
+
+            output[current_frame] = np.array([cap.get(cv.CAP_PROP_POS_MSEC), cX, dcX, cY, dcY])
+                
+            # print(cv.moments(frame_threshold, True))
+            # cv.circle(masked_image, cv.moments(frame_threshold, True), 10, color=255)
+
+    final_concatenation = np.concatenate((indicator, masked_image))
+
+    for x, y in coords_to_put: 
+        font = cv.FONT_HERSHEY_SIMPLEX
+        cv.putText(final_concatenation, f"{x},{y}", (x, y), font, 1, (255, 0, 0), 2)
     
-    cv.imshow(window_detection_name, np.concatenate((indicator, masked_image)))
+    cv.imshow(window_detection_name, final_concatenation)
 
-    key = cv.waitKey(30)
+    if going: 
+        current_frame += 1
+        key = cv.waitKey(1)
+        if key == ord('q') or key == 27:
+            # np.savetxt(f"positions{time.time()}.csv", output, delimiter=",", fmt="%d")
+            break
+        elif key == ord('g'):
+            going = False
+
+
+        continue
+
+    key = cv.waitKey(60)
     if key == ord('q') or key == 27:
-        np.savetxt(f"positions{time.time()}.csv", output, delimiter=",", fmt="%d")
+        # np.savetxt(f"positions{time.time()}.csv", output, delimiter=",", fmt="%d")
         break
     elif key == ord('m'):
         mask = not mask
@@ -188,6 +240,8 @@ while cap.isOpened():
         current_frame += 1
     elif key == ord('j'):
         current_frame = max(0, current_frame - 1)
+    elif key == ord('g'):
+        going = True
 
 print(low_H, low_S, low_V, high_H, high_S, high_V, gaussian_blur_radius, gaussian_stdev)
-np.savetxt(f"positions{time.time()}.csv", output, delimiter=",", fmt="%d")
+np.savetxt(f"positions{time.time()}.csv", output, delimiter=",")
